@@ -1,0 +1,15 @@
+cert_common_domain_zone: d6c98006-043b-449d-870c-1d60302e3ad6.cricket
+cert_common_name: "awsexample7.{{ cert_common_domain_zone }}"
+pem_file_name: "{{ cert_common_name }}.key"
+crt_file_name: "{{ cert_common_name }}.crt"
+aws_access_key: AWS_ACCESS_KEY
+aws_secret_key: 'AWS_SECRET_KEY'
+issuer: "false"
+ansible_user: ubuntu
+ansible_ssh_extra_args: '-o StrictHostKeyChecking=no'
+ssh_private_key_path: /home/ec2-user/ws/ssh-key
+ssl_key_path: /etc/letsencrypt
+webroot: "/usr/share/nginx/nginx_aws_id"
+site_path: "/etc/nginx/conf.d"
+ssl_arch: "ssl_certs.tar.gz"
+valid_email: valid@email.address

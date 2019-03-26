@@ -1,0 +1,6 @@
+sg_name: ansible
+key_name: ansible
+aws_region: us-east-2
+vpc_id: "vpc-4fa09127"
+instance_type: t2.nano
+my_local_cidr_ip: 172.31.0.0/16

@@ -1,0 +1,99 @@
+---
+- hosts: ec2_dyn_group
+  gather_facts: false
+  tags: [update]
+  tasks:
+  - name: Wait for SSH to come up.
+    local_action: wait_for host={{ inventory_hostname }} port=22 delay=20 timeout=320 state=started
+
+- hosts: ec2_dyn_group
+  become: true
+  tags: [update]
+  handlers:
+    - name: restart
+      service:
+        name: nginx
+        state: restarted
+    - name: reload
+      service:
+        name: nginx
+        state: reloaded
+  tasks:
+  - name: Install repo and packages
+    apt_repository:
+      repo: "{{ item }}"
+    with_items:
+      - "ppa:nginx/stable"
+      - "ppa:certbot/certbot"
+  - apt: name={{ item }} update_cache=true
+    with_items:
+      - nginx
+      - python-certbot-nginx
+
+  - block:
+    - name: Renew SSL keys on issuer EC2
+      shell: AWS_ACCESS_KEY_ID={{ aws_access_key }} AWS_SECRET_ACCESS_KEY={{ aws_secret_key }} certbot renew
+      no_log: true  
+    - name: Backup and fetch SSL keys to ansible control
+      shell: date +%Y%m%d%H%M
+      register: backup_date
+    - shell: "cp -R {{ ssl_key_path }} {{ ssl_key_path }}.{{ backup_date.stdout }}"
+    - shell: "tar czf /opt/{{ ssl_arch }} {{ ssl_key_path }}"
+    - fetch: src="/opt/{{ ssl_arch }}" dest=/tmp/ flat=true
+    when: issuer == "true"
+
+  - block:
+    - name: Copy SSl keys to all nodes from ansible control
+      copy: src="/tmp/{{ ssl_arch }}" dest="/opt"
+    - shell: "tar xzf /opt/{{ ssl_arch }} -C /"
+    when: issuer == "false"
+
+  - name: Get EC2 instance id
+    uri:
+      url: http://169.254.169.254/latest/meta-data/instance-id
+      method: GET
+      return_content: yes
+    register: uri_aws_id
+  - set_fact: nginx_aws_id="{{ uri_aws_id.content }}"
+  
+  - name: Create dhparam if not exists
+    stat: path="{{ ssl_key_path }}/dhparam.pem"
+    register: dhparam
+  - shell: "openssl dhparam -out {{ ssl_key_path }}/dhparam.pem 2048"
+    when: dhparam.stat.exists == false
+
+  - name: Create webroot and site_path
+    file:
+      path: "{{ item }}"
+      state: directory
+    with_items:
+    - "{{ webroot }}"
+    - "{{ site_path }}"
+  
+  - name: Create index
+    lineinfile:
+      path: "{{ webroot }}/index.html"
+      state: present
+      create: true
+      line: "{{ nginx_aws_id }}"
+
+  - name: Copy nginx.conf and site.conf templates
+    template:
+      src: templates/site.conf
+      dest: "{{ site_path }}/site.conf"
+    notify:
+    - reload
+  - template:
+      src: templates/nginx.conf
+      dest: /etc/nginx/nginx.conf
+    notify:
+    - reload
+  
+  - systemd: name=nginx state=started enabled=true
+
+  - name: Install new SSL keys in nginx
+    shell: "certbot -n install --installer nginx -d {{ cert_common_name }} --cert-name {{ cert_common_name }}"
+    notify:
+    - reload
+    when:
+    - issuer == "false"
