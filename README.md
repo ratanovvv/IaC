@@ -22,7 +22,7 @@ ansible 2.6.2
 ## Prerequisite
 Create EC2 ssh key in aws cloud and define label in `group_vars/all.yml`
 ## Checkout
-Get code from [Git repo](https://github.com/ratanovvv/ansible.git)
+Get code from [Git repo](https://github.com/ratanovvv/IaC.git)
 ```bash
 git clone --single-branch --branch aws-ansible https://github.com/ratanovvv/IaC.git
 ```
